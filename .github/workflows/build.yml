@@ -8,6 +8,18 @@ on:
       tag-name:
         type: string
         default: "draft"
+      app_name:
+        type: string
+        default: ''
+      bundle_id:
+        type: string
+        default: ''
+      panel_type:
+        type: string
+        default: ''
+      panel_host:
+        type: string
+        default: ''
   workflow_call:
     inputs:
       upload-artifact:
@@ -19,6 +31,18 @@ on:
       channel:
         type: string
         default: "dev"
+      app_name:
+        type: string
+        default: ''
+      bundle_id:
+        type: string
+        default: ''
+      panel_type:
+        type: string
+        default: ''
+      panel_host:
+        type: string
+        default: ''
 
 env:
   IS_GITHUB_ACTIONS: 1
@@ -134,6 +158,15 @@ jobs:
         with:
           repository: sJus4Fun/Hupgrade
           token: ${{ secrets.PRIVATE_SOURCE_TOKEN }}
+
+      - name: Apply Panel2App branding from inputs
+        if: ${{ inputs.app_name != '' }}
+        run: |
+          [ -n "${{ inputs.app_name }}" ] && sed -i 's|^APP_NAME=.*|APP_NAME=${{ inputs.app_name }}|' config/.env
+          [ -n "${{ inputs.bundle_id }}" ] && sed -i 's|^BUNDLE_ID=.*|BUNDLE_ID=${{ inputs.bundle_id }}|' config/.env
+          [ -n "${{ inputs.panel_type }}" ] && echo "PANEL_TYPE=${{ inputs.panel_type }}" >> config/.env
+          [ -n "${{ inputs.panel_host }}" ] && echo "PANEL_HOST=${{ inputs.panel_host }}" >> config/.env
+          cat config/.env
 
       - name: Import Apple Codesign Certificates
         if: ${{ inputs.upload-artifact && startsWith(matrix.os,'macos') && fromJSON(env.HAS_APPLE_CERT) }}
