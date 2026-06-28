@@ -54,9 +54,6 @@ jobs:
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v6
-        with:
-          repository: sJus4Fun/Hupgrade
-          token: ${{ secrets.PRIVATE_SOURCE_TOKEN }}
   #     - uses: subosito/flutter-action@v2.21.0 #issue with 2.13
   #       with:
   #         flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -408,7 +405,6 @@ jobs:
         with:
           repository: sJus4Fun/Hupgrade
           token: ${{ secrets.PRIVATE_SOURCE_TOKEN }}
-        with:
           fetch-depth: 0
       - name: Download Artifact
         uses: actions/download-artifact@v7
