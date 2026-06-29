@@ -199,7 +199,7 @@ jobs:
           echo "Validation: app_name=$APP_NAME bundle_id=$BUNDLE_ID panel_host=$PANEL_HOST"
           if [ -z "$APP_NAME" ]; then echo "❌ 应用名称为空"; exit 1; fi
           if [ -z "$BUNDLE_ID" ]; then echo "❌ Bundle ID 为空"; exit 1; fi
-          if ! echo "$BUNDLE_ID" | grep -q '\\.'; then echo "❌ Bundle ID 必须包含点号（如 com.example.app）"; exit 1; fi
+          if ! echo "$BUNDLE_ID" | grep -q '\.'; then echo "❌ Bundle ID 必须包含点号（如 com.example.app）"; exit 1; fi
           if ! echo "$BUNDLE_ID" | grep -qE '^[a-z][a-z0-9.]*\.[a-z]{2,}$'; then echo "❌ Bundle ID 格式不正确"; exit 1; fi
           if [ -z "$PANEL_HOST" ]; then echo "❌ 面板地址为空"; exit 1; fi
           if [[ "$PANEL_HOST" != http://* && "$PANEL_HOST" != https://* ]]; then echo "❌ 面板地址必须以 http:// 或 https:// 开头"; exit 1; fi
