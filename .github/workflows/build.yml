@@ -563,38 +563,38 @@ jobs:
           RELEASE_URL="https://github.com/sJus4Fun/Hupgrade-CI/releases/download/draft"
           ARTIFACTS_JSON="{}"
 
-          # Try R2 upload first
-          if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -d "./out" ]; then
-            echo "Uploading artifacts to R2..."
+          # Build artifacts JSON manually
+          entries=""
+          if [ -d "./out" ]; then
             for f in ./out/*; do
               [ -f "$f" ] || continue
               BASENAME=$(basename "$f")
               echo "  Uploading $BASENAME..."
               aws s3 cp "$f" "s3://$AWS_BUCKET/builds/$TAG_NAME/$BASENAME" \
                 --endpoint-url "$AWS_ENDPOINT_URL" --region auto
-              # Map to platform
               KEY=""
-              case "$BASENAME" in *Android*apk) KEY="android";; *MacOS*dmg) KEY="macos";; *Windows*exe|*Windows*zip) KEY="windows";; *Linux*deb) KEY="linux";; *AppImage|*.AppImage) KEY="appimage";; esac
+              case "$BASENAME" in *Android*) KEY="android";; *MacOS*) KEY="macos";; *Windows*) KEY="windows";; *Linux*deb) KEY="linux";; *AppImage*) KEY="appimage";; esac
               if [ -n "$KEY" ]; then
                 URL="$R2_PUBLIC_URL/builds/$TAG_NAME/$BASENAME"
-                ARTIFACTS_JSON=$(echo "$ARTIFACTS_JSON" | jq -c --arg k "$KEY" --arg v "$URL" '. + {($k): $v}' 2>/dev/null || echo "$ARTIFACTS_JSON")
+                entries="$entries\"$KEY\":\"$URL\","
               fi
             done
           fi
 
-          # Build callback body
-          if [ "$ARTIFACTS_JSON" != "{}" ]; then
-            echo "Callback with R2 URLs: $ARTIFACTS_JSON"
+          ARTIFACTS="{${entries%\,}}"
+          if [ "$ARTIFACTS" != "{}" ]; then
+            echo "R2 callback with: $ARTIFACTS"
             curl -s -X POST "$BACKEND_URL/api/build/callback" \
               -H "Content-Type: application/json" \
-              -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"artifacts\":$ARTIFACTS_JSON}" \
-              -o /dev/null -w " R2 Callback: %{http_code}" || echo "Callback failed"
+              -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"artifacts\":$ARTIFACTS}" \
+              -o /dev/null -w " R2: %{http_code}" || echo "Callback failed"
           else
-            echo "Callback with GitHub release URL"
+            echo "R2 callback empty, fallback to GitHub"
+            RELEASE_URL="https://github.com/sJus4Fun/Hupgrade-CI/releases/download/draft"
             curl -s -X POST "$BACKEND_URL/api/build/callback" \
               -H "Content-Type: application/json" \
               -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"release_url\":\"$RELEASE_URL\"}" \
-              -o /dev/null -w " GH Callback: %{http_code}" || echo "Callback failed"
+              -o /dev/null -w " GH: %{http_code}" || echo "Callback failed"
           fi
 
   upload-release:
