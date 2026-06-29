@@ -546,25 +546,56 @@ jobs:
           prerelease: true
           repository: hiddify/hiddify-app
 
-      - name: Notify backend of build completion
+      - name: Upload to R2 and notify backend
         if: ${{ always() }}
         shell: bash
         env:
           BACKEND_URL: ${{ vars.BACKEND_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ vars.R2_PUBLIC_URL || 'https://dl.panel2app.com' }}
         run: |
-          if [ -z "$BACKEND_URL" ]; then
-            echo "BACKEND_URL not configured. Set it in repo → Settings → Variables → Actions"
-            exit 0
-          fi
           CONCLUSION="${{ needs.build.result }}"
           TAG_NAME="${{ inputs.tag-name }}"
           RUN_ID="${{ github.run_id }}"
           RELEASE_URL="https://github.com/sJus4Fun/Hupgrade-CI/releases/download/draft"
-          echo "Notifying backend: conclusion=$CONCLUSION tag=$TAG_NAME run_id=$RUN_ID"
-          curl -s -X POST "$BACKEND_URL/api/build/callback" \
-            -H "Content-Type: application/json" \
-            -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"release_url\":\"$RELEASE_URL\"}" \
-            -o /dev/null -w " Status: %{http_code}" || echo "Callback failed"
+          ARTIFACTS_JSON="{}"
+
+          # Try R2 upload first
+          if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -d "./out" ]; then
+            echo "Uploading artifacts to R2..."
+            for f in ./out/*; do
+              [ -f "$f" ] || continue
+              BASENAME=$(basename "$f")
+              echo "  Uploading $BASENAME..."
+              aws s3 cp "$f" "s3://$AWS_BUCKET/builds/$TAG_NAME/$BASENAME" \
+                --endpoint-url "$AWS_ENDPOINT_URL" --region auto
+              # Map to platform
+              KEY=""
+              case "$BASENAME" in *Android*apk) KEY="android";; *MacOS*dmg) KEY="macos";; *Windows*exe|*Windows*zip) KEY="windows";; *Linux*deb) KEY="linux";; *AppImage|*.AppImage) KEY="appimage";; esac
+              if [ -n "$KEY" ]; then
+                URL="$R2_PUBLIC_URL/builds/$TAG_NAME/$BASENAME"
+                ARTIFACTS_JSON=$(echo "$ARTIFACTS_JSON" | jq -c --arg k "$KEY" --arg v "$URL" '. + {($k): $v}' 2>/dev/null || echo "$ARTIFACTS_JSON")
+              fi
+            done
+          fi
+
+          # Build callback body
+          if [ "$ARTIFACTS_JSON" != "{}" ]; then
+            echo "Callback with R2 URLs: $ARTIFACTS_JSON"
+            curl -s -X POST "$BACKEND_URL/api/build/callback" \
+              -H "Content-Type: application/json" \
+              -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"artifacts\":$ARTIFACTS_JSON}" \
+              -o /dev/null -w " R2 Callback: %{http_code}" || echo "Callback failed"
+          else
+            echo "Callback with GitHub release URL"
+            curl -s -X POST "$BACKEND_URL/api/build/callback" \
+              -H "Content-Type: application/json" \
+              -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"release_url\":\"$RELEASE_URL\"}" \
+              -o /dev/null -w " GH Callback: %{http_code}" || echo "Callback failed"
+          fi
 
   upload-release:
     permissions: write-all
