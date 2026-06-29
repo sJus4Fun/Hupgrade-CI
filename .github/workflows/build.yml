@@ -20,6 +20,21 @@ on:
       panel_host:
         type: string
         default: ''
+      privacy_url:
+        type: string
+        default: ''
+      terms_url:
+        type: string
+        default: ''
+      contact_email:
+        type: string
+        default: ''
+      publisher_url:
+        type: string
+        default: ''
+      chat_widget_id:
+        type: string
+        default: ''
   workflow_call:
     inputs:
       upload-artifact:
@@ -41,6 +56,21 @@ on:
         type: string
         default: ''
       panel_host:
+        type: string
+        default: ''
+      privacy_url:
+        type: string
+        default: ''
+      terms_url:
+        type: string
+        default: ''
+      contact_email:
+        type: string
+        default: ''
+      publisher_url:
+        type: string
+        default: ''
+      chat_widget_id:
         type: string
         default: ''
 
@@ -166,6 +196,12 @@ jobs:
           [ -n "${{ inputs.bundle_id }}" ] && sed -i 's|^BUNDLE_ID=.*|BUNDLE_ID=${{ inputs.bundle_id }}|' config/.env
           [ -n "${{ inputs.panel_type }}" ] && echo "PANEL_TYPE=${{ inputs.panel_type }}" >> config/.env
           [ -n "${{ inputs.panel_host }}" ] && echo "PANEL_HOST=${{ inputs.panel_host }}" >> config/.env
+          # Optional brand fields — only write if provided
+          [ -n "${{ inputs.privacy_url }}" ] && sed -i 's|^PRIVACY_URL=.*|PRIVACY_URL=${{ inputs.privacy_url }}|' config/.env || true
+          [ -n "${{ inputs.terms_url }}" ] && sed -i 's|^TERMS_URL=.*|TERMS_URL=${{ inputs.terms_url }}|' config/.env || true
+          [ -n "${{ inputs.contact_email }}" ] && sed -i 's|^CONTACT_EMAIL=.*|CONTACT_EMAIL=${{ inputs.contact_email }}|' config/.env || true
+          [ -n "${{ inputs.publisher_url }}" ] && sed -i 's|^PUBLISHER_URL=.*|PUBLISHER_URL=${{ inputs.publisher_url }}|' config/.env || true
+          [ -n "${{ inputs.chat_widget_id }}" ] && sed -i 's|^CHAT_WIDGET_ID=.*|CHAT_WIDGET_ID=${{ inputs.chat_widget_id }}|' config/.env || true
           cat config/.env
 
       - name: Import Apple Codesign Certificates
