@@ -191,17 +191,17 @@ jobs:
 
       - name: Apply Panel2App branding from inputs
         if: ${{ inputs.app_name != '' }}
+        shell: bash
         run: |
-          [ -n "${{ inputs.app_name }}" ] && sed -i 's|^APP_NAME=.*|APP_NAME=${{ inputs.app_name }}|' config/.env
-          [ -n "${{ inputs.bundle_id }}" ] && sed -i 's|^BUNDLE_ID=.*|BUNDLE_ID=${{ inputs.bundle_id }}|' config/.env
+          [ -n "${{ inputs.app_name }}" ] && perl -i -pe 's|^APP_NAME=.*|APP_NAME=${{ inputs.app_name }}|' config/.env
+          [ -n "${{ inputs.bundle_id }}" ] && perl -i -pe 's|^BUNDLE_ID=.*|BUNDLE_ID=${{ inputs.bundle_id }}|' config/.env
           [ -n "${{ inputs.panel_type }}" ] && echo "PANEL_TYPE=${{ inputs.panel_type }}" >> config/.env
           [ -n "${{ inputs.panel_host }}" ] && echo "PANEL_HOST=${{ inputs.panel_host }}" >> config/.env
-          # Optional brand fields — only write if provided
-          [ -n "${{ inputs.privacy_url }}" ] && sed -i 's|^PRIVACY_URL=.*|PRIVACY_URL=${{ inputs.privacy_url }}|' config/.env || true
-          [ -n "${{ inputs.terms_url }}" ] && sed -i 's|^TERMS_URL=.*|TERMS_URL=${{ inputs.terms_url }}|' config/.env || true
-          [ -n "${{ inputs.contact_email }}" ] && sed -i 's|^CONTACT_EMAIL=.*|CONTACT_EMAIL=${{ inputs.contact_email }}|' config/.env || true
-          [ -n "${{ inputs.publisher_url }}" ] && sed -i 's|^PUBLISHER_URL=.*|PUBLISHER_URL=${{ inputs.publisher_url }}|' config/.env || true
-          [ -n "${{ inputs.chat_widget_id }}" ] && sed -i 's|^CHAT_WIDGET_ID=.*|CHAT_WIDGET_ID=${{ inputs.chat_widget_id }}|' config/.env || true
+          [ -n "${{ inputs.privacy_url }}" ] && perl -i -pe 's|^PRIVACY_URL=.*|PRIVACY_URL=${{ inputs.privacy_url }}|' config/.env || true
+          [ -n "${{ inputs.terms_url }}" ] && perl -i -pe 's|^TERMS_URL=.*|TERMS_URL=${{ inputs.terms_url }}|' config/.env || true
+          [ -n "${{ inputs.contact_email }}" ] && perl -i -pe 's|^CONTACT_EMAIL=.*|CONTACT_EMAIL=${{ inputs.contact_email }}|' config/.env || true
+          [ -n "${{ inputs.publisher_url }}" ] && perl -i -pe 's|^PUBLISHER_URL=.*|PUBLISHER_URL=${{ inputs.publisher_url }}|' config/.env || true
+          [ -n "${{ inputs.chat_widget_id }}" ] && perl -i -pe 's|^CHAT_WIDGET_ID=.*|CHAT_WIDGET_ID=${{ inputs.chat_widget_id }}|' config/.env || true
           cat config/.env
 
       - name: Import Apple Codesign Certificates
