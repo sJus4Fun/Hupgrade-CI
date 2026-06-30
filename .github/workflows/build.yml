@@ -472,186 +472,37 @@ jobs:
         with:
           name: ${{matrix.platform}}
           path: ./out
-          retention-days: 1
+          retention-days: 7
 
       - name: Clean up keychain and provisioning profile
         if: ${{ always() && startsWith(matrix.os,'macos') && fromJSON(env.HAS_APPLE_CERT) }}
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db ||echo ok
           rm ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision ||echo ok
-  update-draft:
-    permissions: write-all
-    if: ${{ inputs.upload-artifact }}
+  callback:
+    if: ${{ always() && needs.build.result != 'skipped' }}
     needs: [build]
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
-        uses: actions/checkout@v6
-        with:
-          repository: sJus4Fun/Hupgrade
-          token: ${{ secrets.PRIVATE_SOURCE_TOKEN }}
-          fetch-depth: 0
-      - name: Download Artifact
-        uses: actions/download-artifact@v7
-        with:
-          merge-multiple: true
-          pattern: "*"
-          path: ./out/          
-
-      - name: Display Files Structure
-        run: ls -R
-        working-directory: ./out
-
-      - name: Delete Current Release Assets
-        uses: 8Mi-Tech/delete-release-assets-action@main
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: 'draft'
-          deleteOnlyFromDrafts: false
-          
-      - name: prepare_release_message
-        continue-on-error: true
-        run: |
-          set +e 
-          sed 's|RELEASE_TAG|${{ env.TAG_NAME }}|g' ./.github/release_message.md > release.md
-          pip install gitchangelog pystache mustache markdown
-          prelease=$(curl --silent "https://api.github.com/repos/hiddify/hiddify-app/releases/latest" | grep -Po '"tag_name": "\K([^"]*)') 
-          echo -e "\n\n<details markdown=1><summary>All changes from $current to the latest commit:</summary>\n\n">>release.md
-          gitchangelog "${prelease}.." >> release.md  2>&1 || echo "Error in gitchangelog"
-          echo -e "\n\n</details>">>release.md
-
-      - name: Create or Update Draft Release (this repo)
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          files: ./out/*
-          name: 'draft'
-          tag_name: 'draft'
-          body_path: './release.md'
-          prerelease: true
-
-      - name: Create or Update Draft Release (upstream repo)
-        if: ${{ fromJSON(env.HAS_TOKEN_UPSTREAM) }}
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN_FOR_HIDDIFY_APP_REPO }}
-          GITHUB_REPOSITORY: hiddify/hiddify-app
-        with:
-          files: ./out/*
-          name: 'draft'
-          tag_name: 'draft'
-          body_path: './release.md'
-          target_commitish: '530bf77839a74d4f13847ba244a20734ac7ab119'
-          prerelease: true
-          repository: hiddify/hiddify-app
-
-      - name: Upload to R2 and notify backend
-        if: ${{ always() }}
+      - name: Callback with artifact IDs
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_URL: ${{ vars.BACKEND_URL }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
-          AWS_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_PUBLIC_URL: ${{ vars.R2_PUBLIC_URL || 'https://dl.panel2app.com' }}
         run: |
           CONCLUSION="${{ needs.build.result }}"
-          TAG_NAME="${{ inputs.tag-name }}"
           RUN_ID="${{ github.run_id }}"
-          RELEASE_URL="https://github.com/sJus4Fun/Hupgrade-CI/releases/download/draft"
-          ARTIFACTS_JSON="{}"
 
-          # Build artifacts JSON manually
-          entries=""
-          if [ -d "./out" ]; then
-            for f in ./out/*; do
-              [ -f "$f" ] || continue
-              BASENAME=$(basename "$f")
-              echo "  Uploading $BASENAME..."
-              aws s3 cp "$f" "s3://$AWS_BUCKET/builds/$TAG_NAME/$BASENAME" \
-                --endpoint-url "$AWS_ENDPOINT_URL" --region auto
-              KEY=""
-              case "$BASENAME" in *Android*) KEY="android";; *MacOS*) KEY="macos";; *Windows*) KEY="windows";; *Linux*deb) KEY="linux";; *AppImage*) KEY="appimage";; esac
-              if [ -n "$KEY" ]; then
-                URL="$R2_PUBLIC_URL/builds/$TAG_NAME/$BASENAME"
-                entries="$entries\"$KEY\":\"$URL\","
-              fi
-            done
-          fi
+          # Query GitHub API for artifact IDs
+          ARTIFACTS=$(gh api "/repos/sJus4Fun/Hupgrade-CI/actions/runs/${RUN_ID}/artifacts" \
+            --jq '.artifacts | map({key: .name, value: (.id | tostring)}) | from_entries')
 
-          ARTIFACTS="{${entries%\,}}"
-          if [ "$ARTIFACTS" != "{}" ]; then
-            echo "R2 callback with: $ARTIFACTS"
-            curl -s -X POST "$BACKEND_URL/api/build/callback" \
-              -H "Content-Type: application/json" \
-              -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"artifacts\":$ARTIFACTS}" \
-              -o /dev/null -w " R2: %{http_code}" || echo "Callback failed"
-          else
-            echo "R2 callback empty, fallback to GitHub"
-            RELEASE_URL="https://github.com/sJus4Fun/Hupgrade-CI/releases/download/draft"
-            curl -s -X POST "$BACKEND_URL/api/build/callback" \
-              -H "Content-Type: application/json" \
-              -d "{\"conclusion\":\"$CONCLUSION\",\"tag_name\":\"$TAG_NAME\",\"run_id\":\"$RUN_ID\",\"release_url\":\"$RELEASE_URL\"}" \
-              -o /dev/null -w " GH: %{http_code}" || echo "Callback failed"
-          fi
+          echo "Artifacts: $ARTIFACTS"
 
-  upload-release:
-    permissions: write-all
-    if: ${{ inputs.upload-artifact && inputs.tag-name != 'draft' }}
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v6
-        with:
-          repository: sJus4Fun/Hupgrade
-          token: ${{ secrets.PRIVATE_SOURCE_TOKEN }}
-
-      - name: Download Artifact
-        uses: actions/download-artifact@v7
-        with:
-          merge-multiple: true
-          pattern: "*"
-          path: ./out/
-
-      - name: Display Files Structure
-        run: |
-          ls -R ./out
-          ls -R ./.github/
-          ls -R ./.git/
-          mv out/hiddify-android-market.aab  hiddify-android-market.aab
-
-      - name: prepare_release_message
-        run: |
-          sed 's|RELEASE_TAG|${{ env.TAG_NAME }}|g' ./.github/release_message.md >> release.md
-
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
-        if: ${{ success() }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # prerelease: ${{ env.CHANNEL == 'dev' }}
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          body_path: './release.md'
-          files: ./out/*
-
-      - name: Create service_account.json
-        if: ${{ fromJSON(env.HAS_GOOGLE_PLAY) }}
-        run: echo '${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}' > service_account.json
-
-      - name: Deploy to Google Play Internal Testers
-        if: ${{ fromJSON(env.HAS_GOOGLE_PLAY) }}
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJson: service_account.json
-          packageName: app.tiyunzong.com
-          releaseName: ${{ env.TAG_NAME }}
-          releaseFiles: ./hiddify-android-market.aab
-          track: 'beta'
+          curl -s -X POST "${BACKEND_URL}/api/build/callback" \
+            -H "Content-Type: application/json" \
+            -d "{\"conclusion\":\"${CONCLUSION}\",\"run_id\":\"${RUN_ID}\",\"artifacts\":${ARTIFACTS}}" \
+            -w "\nCallback: %{http_code}" || echo "Callback failed"
 
   upload-to-testflight:
     needs: [build]
