@@ -501,7 +501,7 @@ jobs:
 
           curl -s -X POST "${BACKEND_URL}/api/build/callback" \
             -H "Content-Type: application/json" \
-            -d "{\"conclusion\":\"${CONCLUSION}\",\"run_id\":\"${RUN_ID}\",\"artifacts\":${ARTIFACTS}}" \
+            -d "{\"conclusion\":\"${CONCLUSION}\",\"run_id\":\"${RUN_ID}\",\"tag_name\":\"${TAG_NAME}\",\"artifacts\":${ARTIFACTS}}" \
             -w "\nCallback: %{http_code}" || echo "Callback failed"
 
   upload-to-testflight:
