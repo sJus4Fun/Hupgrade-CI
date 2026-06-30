@@ -321,7 +321,16 @@ jobs:
                   
       - name: Setup dependencies
         run: |
-          make ${{ matrix.platform }}-install-deps  
+          case "${{ matrix.platform }}" in
+            linux-deb|linux-deb-arm64|linux-appimage|linux-appimage-arm64)
+              make linux-install-deps ;;
+            macos-arm|macos-x86)
+              make macos-install-deps ;;
+            windows-arm64)
+              make windows-install-deps ;;
+            *)
+              make ${{ matrix.platform }}-install-deps ;;
+          esac
           echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
       
       - name: Install Pillow (svg2png.py dependency)
