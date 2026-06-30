@@ -139,15 +139,16 @@ jobs:
           FULL='[{"platform":"android-apk","os":"ubuntu-latest","targets":"apk"},{"platform":"android-aab","os":"ubuntu-latest","targets":"aab"},{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"},{"platform":"linux","os":"ubuntu-22.04","aarch":"amd64","targets":"deb,gz,AppImage"},{"platform":"macos","os":"macos-15","aarch":"universal","targets":"dmg,pkg"}]'
           PLATFORMS="${{ inputs.platforms }}"
           if [ -z "$PLATFORMS" ]; then
-            echo "matrix=$FULL" >> $GITHUB_OUTPUT
+            ENTRIES="$FULL"
           else
-            FILTERED=$(echo "$FULL" | jq -c --arg p "$PLATFORMS" '($p | split(",")) as $r | map(select(.platform as $x | $r | index($x)))')
-            echo "matrix=$FILTERED" >> $GITHUB_OUTPUT
+            ENTRIES=$(echo "$FULL" | jq -c --arg p "$PLATFORMS" '($p | split(",")) as $r | map(select(.platform as $x | $r | index($x)))')
           fi
+          # Wrap in {include: [...]} — GitHub Actions matrix requires a mapping
+          echo "matrix={\"include\":$ENTRIES}" >> $GITHUB_OUTPUT
 
   build:
     needs: setup-matrix
-    if: ${{ needs.setup-matrix.outputs.matrix != '[]' && needs.setup-matrix.outputs.matrix != '' }}
+    if: ${{ needs.setup-matrix.outputs.matrix != '{"include":[]}' && needs.setup-matrix.outputs.matrix != '' }}
     permissions: write-all
     continue-on-error: true
 
