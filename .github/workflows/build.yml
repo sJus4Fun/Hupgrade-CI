@@ -85,18 +85,7 @@ env:
   NDK_VERSION: r28c
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
   TAG_NAME: "${{ inputs.tag-name }}"
-  TARGET_NAME_gz: "TiYunZong-Linux-x64-AppImage.tar"
-  TARGET_NAME_AppImage: "TiYunZong-Linux-x64-AppImage"
-  TARGET_NAME_deb: "TiYunZong-Debian-x64"
-  # TARGET_NAME_rpm: "TiYunZong-rpm-x64"
-  TARGET_NAME_apk: "TiYunZong-Android"
-  TARGET_NAME_aab: "TiYunZong-Android"
-  TARGET_NAME_exe: "TiYunZong-Windows-Setup-x64"
-  # TARGET_NAME_msix: "TiYunZong-Windows-x64"  # uncomment when MSIX target is re-enabled
-  TARGET_NAME_zip: "TiYunZong-Windows-Portable-x64"
-  TARGET_NAME_dmg: "TiYunZong-MacOS"
-  TARGET_NAME_pkg: "TiYunZong-MacOS-Installer"
-  TARGET_NAME_ipa: "TiYunZong-iOS"
+  # TARGET_NAME_* set dynamically in "Extract version" step
   # Secret presence flags for conditional steps
   HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_P12 != '' }}
   HAS_WINDOWS_KEY: ${{ secrets.WINDOWS_SIGNING_KEY != '' }}
@@ -193,6 +182,22 @@ jobs:
           [ -n "${{ inputs.publisher_url }}" ] && perl -i -pe 's|^PUBLISHER_URL=.*|PUBLISHER_URL=${{ inputs.publisher_url }}|' config/.env || true
           [ -n "${{ inputs.chat_widget_id }}" ] && perl -i -pe 's|^CHAT_WIDGET_ID=.*|CHAT_WIDGET_ID=${{ inputs.chat_widget_id }}|' config/.env || true
           cat config/.env
+
+      - name: Extract version
+        shell: bash
+        run: |
+          VERSION=$(perl -ne 'print $1 if /^version:\s*(\S+)/' pubspec.yaml | cut -d+ -f1)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TARGET_NAME_gz=Linux-x64-v${VERSION}-AppImage.tar" >> $GITHUB_ENV
+          echo "TARGET_NAME_AppImage=Linux-x64-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_deb=Linux-x64-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_apk=Android-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_aab=Android-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_exe=Windows-Setup-x64-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_zip=Windows-Portable-x64-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_dmg=MacOS-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_pkg=MacOS-Installer-v${VERSION}" >> $GITHUB_ENV
+          echo "TARGET_NAME_ipa=iOS-v${VERSION}" >> $GITHUB_ENV
 
       - name: Import Apple Codesign Certificates
         if: ${{ inputs.upload-artifact && startsWith(matrix.os,'macos') && fromJSON(env.HAS_APPLE_CERT) }}
@@ -354,7 +359,7 @@ jobs:
           folder: 'dist'
           timestamp-server: 'http://timestamp.digicert.com'
           recursive: true
-          description: 'TiYunZong'
+          description: 'App'
 
       - name: Copy to out Windows
         if: matrix.platform == 'windows'
@@ -518,10 +523,18 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "${{secrets.APPLE_DIST_PROVISIONING_PROFILES_TARGZ_BASE64}}"|base64 --decode | tar xz -C ~/Library/MobileDevice/Provisioning\ Profiles
 
+      - name: Find IPA
+        id: find-ipa
+        if: ${{ fromJSON(env.HAS_APPSTORE) }}
+        run: |
+          IPA_PATH=$(ls ./out/*.ipa 2>/dev/null | head -1)
+          echo "ipa-path=$IPA_PATH" >> $GITHUB_OUTPUT
+          echo "Found IPA: $IPA_PATH"
+
       - uses: Apple-Actions/upload-testflight-build@v4
         if: ${{ fromJSON(env.HAS_APPSTORE) }}
         with:
-          app-path: 'out/TiYunZong-iOS.ipa' 
+          app-path: '${{ steps.find-ipa.outputs.ipa-path }}'
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
