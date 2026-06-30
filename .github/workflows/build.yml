@@ -125,7 +125,7 @@ jobs:
       - name: Generate matrix
         id: set-matrix
         run: |
-          FULL='[{"platform":"android","os":"ubuntu-latest","targets":"apk"},{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"},{"platform":"","os":"ubuntu-22.04","aarch":"amd64","targets":"deb,gz,AppImage"},{"platform":"macos","os":"macos-15","aarch":"universal","targets":"dmg,pkg"}]'
+          FULL='[{"platform":"android","os":"ubuntu-latest","targets":"apk"},{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"},{"platform":"linux","os":"ubuntu-22.04","aarch":"amd64","targets":"deb,gz,AppImage"},{"platform":"macos","os":"macos-15","aarch":"universal","targets":"dmg,pkg"}]'
           PLATFORMS="${{ inputs.platforms }}"
           if [ -z "$PLATFORMS" ]; then
             ENTRIES="$FULL"
