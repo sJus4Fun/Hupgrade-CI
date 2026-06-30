@@ -35,6 +35,10 @@ on:
       chat_widget_id:
         type: string
         default: ''
+      platforms:
+        type: string
+        default: ''
+        description: 'Comma-separated CI platform names (android-apk,android-aab,windows,linux,macos). Empty = all platforms.'
   workflow_call:
     inputs:
       upload-artifact:
@@ -124,63 +128,32 @@ jobs:
   #       run: echo "::set-output name=datetime::$(date +'%d.%H.%M')"
 
 
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Generate matrix
+        id: set-matrix
+        run: |
+          FULL='[{"platform":"android-apk","os":"ubuntu-latest","targets":"apk"},{"platform":"android-aab","os":"ubuntu-latest","targets":"aab"},{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"},{"platform":"linux","os":"ubuntu-22.04","aarch":"amd64","targets":"deb,gz,AppImage"},{"platform":"macos","os":"macos-15","aarch":"universal","targets":"dmg,pkg"}]'
+          PLATFORMS="${{ inputs.platforms }}"
+          if [ -z "$PLATFORMS" ]; then
+            echo "matrix=$FULL" >> $GITHUB_OUTPUT
+          else
+            FILTERED=$(echo "$FULL" | jq -c --arg p "$PLATFORMS" '($p | split(",")) as $r | map(select(.platform as $x | $r | index($x)))')
+            echo "matrix=$FILTERED" >> $GITHUB_OUTPUT
+          fi
+
   build:
-    # needs: test
+    needs: setup-matrix
+    if: ${{ needs.setup-matrix.outputs.matrix != '[]' && needs.setup-matrix.outputs.matrix != '' }}
     permissions: write-all
     continue-on-error: true
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - platform: android-apk
-            os: ubuntu-latest
-            targets: apk
-
-          - platform: android-aab
-            os: ubuntu-latest
-            targets: aab
-
-          - platform: windows
-            os: windows-latest
-            aarch: amd64
-            targets: exe,zip          # msix commented out — re-enable if MS Store distribution is needed
-
-          - platform: linux
-            os: ubuntu-22.04
-            aarch: amd64
-            targets: deb,gz,AppImage
-
-          # - platform: linux-amd64
-          #   os: ubuntu-22.04
-          #   aarch: amd64
-          #   targets: deb,gz
-
-          # - platform: linux-arm64
-          #   os: ubuntu-24.04-arm
-          #   aarch: arm64
-          #   targets: deb,gz
-
-          # - platform: linux-amd64-musl
-          #   os: ubuntu-22.04
-          #   aarch: amd64
-          #   targets: deb,gz
-
-          # - platform: linux-arm64-musl
-          #   os: ubuntu-24.04-arm
-          #   aarch: arm64
-          #   targets: deb,gz
-            
-          - platform: macos
-            os: macos-15
-            aarch: universal
-            targets: dmg,pkg
-            
-          # - platform: ios
-          #   os: macos-15
-          #   aarch: universal
-          #   filename: hiddify-ios
-          #   targets: ipa
+      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout
