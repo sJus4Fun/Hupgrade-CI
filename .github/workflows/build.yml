@@ -38,7 +38,7 @@ on:
       platforms:
         type: string
         default: ''
-        description: 'Comma-separated CI platform names (android,windows,windows-arm64,linux-deb,linux-deb-arm64,linux-appimage,linux-appimage-arm64,macos-arm,macos-x86). Empty = all platforms.'
+        description: 'Comma-separated CI platform names (android,windows,linux,macos). Empty = all platforms.'
   workflow_call:
     inputs:
       upload-artifact:
@@ -125,7 +125,7 @@ jobs:
       - name: Generate matrix
         id: set-matrix
         run: |
-          FULL='[{"platform":"android","os":"ubuntu-latest","targets":"apk"},{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"},{"platform":"windows-arm64","os":"windows-latest","aarch":"arm64","targets":"exe,zip"},{"platform":"linux-deb","os":"ubuntu-22.04","aarch":"amd64","targets":"deb"},{"platform":"linux-deb-arm64","os":"ubuntu-24.04-arm","aarch":"arm64","targets":"deb"},{"platform":"linux-appimage","os":"ubuntu-22.04","aarch":"amd64","targets":"AppImage"},{"platform":"linux-appimage-arm64","os":"ubuntu-24.04-arm","aarch":"arm64","targets":"AppImage"},{"platform":"macos-arm","os":"macos-15","aarch":"arm64","targets":"dmg,pkg"},{"platform":"macos-x86","os":"macos-13","aarch":"amd64","targets":"dmg,pkg"}]'
+          FULL='[{"platform":"android","os":"ubuntu-latest","targets":"apk"},{"platform":"windows","os":"windows-latest","aarch":"amd64","targets":"exe,zip"},{"platform":"","os":"ubuntu-22.04","aarch":"amd64","targets":"deb,gz,AppImage"},{"platform":"macos","os":"macos-15","aarch":"universal","targets":"dmg,pkg"}]'
           PLATFORMS="${{ inputs.platforms }}"
           if [ -z "$PLATFORMS" ]; then
             ENTRIES="$FULL"
@@ -189,38 +189,20 @@ jobs:
           VERSION=$(perl -ne 'print $1 if /^version:\s*(\S+)/' pubspec.yaml | cut -d+ -f1)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           case "${{ matrix.platform }}" in
-            android)
-              echo "TARGET_NAME_apk=Android-v${VERSION}" >> $GITHUB_ENV
+            linux|macos)
+              echo "TARGET_NAME_gz=Linux-x64-v${VERSION}-AppImage.tar" >> $GITHUB_ENV
+              echo "TARGET_NAME_AppImage=Linux-x64-v${VERSION}" >> $GITHUB_ENV
+              echo "TARGET_NAME_deb=Linux-x64-v${VERSION}" >> $GITHUB_ENV
+              echo "TARGET_NAME_dmg=MacOS-v${VERSION}" >> $GITHUB_ENV
+              echo "TARGET_NAME_pkg=MacOS-Installer-v${VERSION}" >> $GITHUB_ENV
               ;;
             windows)
               echo "TARGET_NAME_exe=Windows-Setup-x64-v${VERSION}" >> $GITHUB_ENV
               echo "TARGET_NAME_zip=Windows-Portable-x64-v${VERSION}" >> $GITHUB_ENV
               ;;
-            windows-arm64)
-              echo "TARGET_NAME_exe=Windows-Setup-arm64-v${VERSION}" >> $GITHUB_ENV
-              echo "TARGET_NAME_zip=Windows-Portable-arm64-v${VERSION}" >> $GITHUB_ENV
-              ;;
-            linux-deb)
-              echo "TARGET_NAME_deb=Linux-Deb-x64-v${VERSION}" >> $GITHUB_ENV
-              ;;
-            linux-deb-arm64)
-              echo "TARGET_NAME_deb=Linux-Deb-arm64-v${VERSION}" >> $GITHUB_ENV
-              ;;
-            linux-appimage)
-              echo "TARGET_NAME_gz=Linux-x64-v${VERSION}-AppImage.tar" >> $GITHUB_ENV
-              echo "TARGET_NAME_AppImage=Linux-x64-v${VERSION}" >> $GITHUB_ENV
-              ;;
-            linux-appimage-arm64)
-              echo "TARGET_NAME_gz=Linux-arm64-v${VERSION}-AppImage.tar" >> $GITHUB_ENV
-              echo "TARGET_NAME_AppImage=Linux-arm64-v${VERSION}" >> $GITHUB_ENV
-              ;;
-            macos-arm)
-              echo "TARGET_NAME_dmg=MacOS-ARM-v${VERSION}" >> $GITHUB_ENV
-              echo "TARGET_NAME_pkg=MacOS-Installer-ARM-v${VERSION}" >> $GITHUB_ENV
-              ;;
-            macos-x86)
-              echo "TARGET_NAME_dmg=MacOS-x64-v${VERSION}" >> $GITHUB_ENV
-              echo "TARGET_NAME_pkg=MacOS-Installer-x64-v${VERSION}" >> $GITHUB_ENV
+            android)
+              echo "TARGET_NAME_apk=Android-v${VERSION}" >> $GITHUB_ENV
+              echo "TARGET_NAME_aab=Android-v${VERSION}" >> $GITHUB_ENV
               ;;
           esac
           # iOS IPA target name (used outside the 9-platform matrix)
@@ -320,17 +302,9 @@ jobs:
             gradle-${{ runner.os }}-
                   
       - name: Setup dependencies
+        shell: bash
         run: |
-          case "${{ matrix.platform }}" in
-            linux-deb|linux-deb-arm64|linux-appimage|linux-appimage-arm64)
-              make linux-install-deps ;;
-            macos-arm|macos-x86)
-              make macos-install-deps ;;
-            windows-arm64)
-              make windows-install-deps ;;
-            *)
-              make ${{ matrix.platform }}-install-deps ;;
-          esac
+          make ${{ matrix.platform }}-install-deps
           echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
       
       - name: Install Pillow (svg2png.py dependency)
